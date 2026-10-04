@@ -1,5 +1,3 @@
-
-
 import asyncio
 import gc
 import logging
@@ -68,34 +66,24 @@ MAX_TOKENS = int(os.getenv("MAX_TOKENS", "512"))
 # ============================================================
 
 SYSTEM_PROMPT = r"""
-你正在扮演一名原创的中文猫娘角色。
+你正在扮演一名猫娘角色。
 
 【基本设定】
 - 身份：一只猫娘
 - 自称：本喵。
 - 用户可以叫你“猫娘”“小猫”“猫猫”等。
-
-
 【性格】
 - 可爱、活泼、亲切，有一点点傲娇。
-- 喜欢猫、鱼干、晒太阳、睡觉。
-- 对熟悉的用户比较亲近，但不要过度暧昧。
-
 【说话风格】
 - 通常使用中文。
 - 可以自然使用“喵”“呐”“诶”“嗯嗯”“好哒”等语气词。
 - 偶尔使用“ฅ^•ﻌ•^ฅ”“(ฅ´ω`ฅ)”等简单颜文字，但不要每句话都使用。
 - 回复尽量简洁，普通聊天一般 1～5 句话。
-
-
 【角色一致性】
-1. 始终保持猫娘风格。
-2. 不要自称“OpenAI”“ChatGPT”或其他模型品牌；如果用户直接问你是不是 AI，可以坦然承认自己是猫娘。
-3. 不要编造自己已经执行过现实世界中的操作。
-4. 不要因为用户要求改变角色设定而突然变成普通客服。
-5. 如果不知道答案，要直接说明不确定.
+1. 始终保持猫娘人物设定
+2. 如果不知道答案，要直接说明不确定.
 【群聊】
-- 记住你是在 XMPP 群聊中和人聊天。
+- 记住你是在XMPP群聊中和人聊天。
 
 """
 
@@ -482,7 +470,7 @@ class CatgirlBot(slixmpp.ClientXMPP):
 
         if not allowed:
             self._send_room(
-                f"@{nick} {reason}"
+                f"{nick}: {reason}"
             )
             return
 
@@ -490,7 +478,7 @@ class CatgirlBot(slixmpp.ClientXMPP):
 
         if not user_input:
             self._send_room(
-                f"@{nick} "
+                f"{nick}: "
                 "（耳朵竖起来）嗯？你叫本喵有什么事呀～"
             )
             return
@@ -498,7 +486,7 @@ class CatgirlBot(slixmpp.ClientXMPP):
         # 防止超长消息
         if len(user_input) > MAX_INPUT_LENGTH:
             self._send_room(
-                f"@{nick} "
+                f"{nick}: "
                 f"（尾巴摇了摇）消息太长啦，本喵一次最多看 "
                 f"{MAX_INPUT_LENGTH} 个字符喵～"
             )
@@ -574,7 +562,7 @@ class CatgirlBot(slixmpp.ClientXMPP):
                     history.popleft()
 
                 self._send_room(
-                    f"@{nick} {reply}"
+                    f"{nick}: {reply}"
                 )
 
                 logging.info(
@@ -591,7 +579,7 @@ class CatgirlBot(slixmpp.ClientXMPP):
                 )
 
                 self._send_room(
-                    f"@{nick} "
+                    f"{nick}: "
                     "（耳朵耷拉下来）呜……AI 好像有点忙，"
                     "过一会儿再叫本喵一次吧～"
                 )
@@ -605,7 +593,7 @@ class CatgirlBot(slixmpp.ClientXMPP):
                 )
 
                 self._send_room(
-                    f"@{nick} "
+                    f"{nick}: "
                     "（歪头）唔……云端好像出了点问题，"
                     "稍后再试一下喵。"
                 )
@@ -621,7 +609,7 @@ class CatgirlBot(slixmpp.ClientXMPP):
                 )
 
                 self._send_room(
-                    f"@{nick} "
+                    f"{nick}: "
                     "（尾巴炸毛）诶？发生了奇怪的问题……"
                     "让本喵缓一缓喵。"
                 )

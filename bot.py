@@ -896,21 +896,4 @@ venv/
 .vscode/
 """
 
-readme = """# XMPP 猫娘 AI Bot
 
-一个基于 **slixmpp + Cloudflare Workers AI** 的 XMPP 群聊 AI 猫娘机器人。
-
-适合直接放进 GitHub，然后部署到 Railway。
-
-## 1. GitHub 文件
-
-仓库最少需要：
-
-```text
-catgirl-xmpp-bot/
-├── bot.py
-├── requirements.txt
-├── Dockerfile
-├── railway.toml
-├── .gitignore
-└── README.md

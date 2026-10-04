@@ -1,9 +1,3 @@
-from pathlib import Path
-import zipfile, textwrap
-
-root = Path("/mnt/data/catgirl-xmpp-bot")
-root.mkdir(exist_ok=True)
-
 
 
 import asyncio

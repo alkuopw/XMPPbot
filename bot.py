@@ -4,7 +4,9 @@ import zipfile, textwrap
 root = Path("/mnt/data/catgirl-xmpp-bot")
 root.mkdir(exist_ok=True)
 
-bot_py = r'''import asyncio
+
+
+import asyncio
 import gc
 import logging
 import os

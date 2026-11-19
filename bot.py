@@ -598,13 +598,10 @@ class CatgirlBot(slixmpp.ClientXMPP):
         user_input: str,
         lock: asyncio.Lock,
     ):
+        async with lock:
+            user_key = f"{room_jid}|{nick}"
 
-    async with lock:
-
-        user_key = f"{room_jid}|{nick}"
-
-        history = self._history[user_key]
-
+            history = self._history[user_key]
             try:
                 await asyncio.sleep(REPLY_DELAY)
 

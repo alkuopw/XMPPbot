@@ -753,13 +753,16 @@ class CatgirlBot(slixmpp.ClientXMPP):
     # 连接事件
     # --------------------------------------------------------
 
+    # --------------------------------------------------------
+    # 连接事件
+    # --------------------------------------------------------
+
     def on_disconnect(self, event):
         logging.warning(
             "⚠ XMPP 连接断开，等待外层重连……"
         )
 
-        
-    self._joined_rooms.clear()
+        self._joined_rooms.clear()
 
     def on_connection_failed(self, event):
         logging.error(
@@ -781,7 +784,6 @@ class CatgirlBot(slixmpp.ClientXMPP):
                 self.disconnect()
         except Exception:
             pass
-
 
 # ============================================================
 # 主循环：断线自动重连

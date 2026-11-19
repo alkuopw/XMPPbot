@@ -137,38 +137,38 @@ class RateLimiter:
 
     _times: Dict[str, List[float]] = field(default_factory=dict)
     _muted: Dict[str, float] = field(default_factory=dict)
-
     def check(self, user_key: str) -> Tuple[bool, str]:
-    now = time.time()
+        now = time.time()
 
-    mute_until = self._muted.get(user_key, 0)
+        mute_until = self._muted.get(user_key, 0)
 
-    if now < mute_until:
-        return (
-            False,
-            f"（尾巴轻轻一甩）慢一点啦，等 {int(mute_until - now)} 秒再来找本喵吧～"
-        )
+        if now < mute_until:
+            return (
+                False,
+                f"（尾巴轻轻一甩）慢一点啦，等 {int(mute_until - now)} 秒再来找本喵吧～"
+            )
 
-    if mute_until:
-        self._muted.pop(user_key, None)
+        if mute_until:
+            self._muted.pop(user_key, None)
 
-    times = self._times.setdefault(user_key, [])
-    times[:] = [
-        t for t in times
-        if now - t < self.time_window
-    ]
+        times = self._times.setdefault(user_key, [])
+        times[:] = [
+            t for t in times
+            if now - t < self.time_window
+        ]
 
-    times.append(now)
+        times.append(now)
 
-    if len(times) > self.max_count:
-        self._muted[user_key] = now + self.cooldown
+        if len(times) > self.max_count:
+            self._muted[user_key] = now + self.cooldown
 
-        return (
-            False,
-            f"（鼓起脸颊）你问得太快啦……让本喵休息 {int(self.cooldown)} 秒喵。"
-        )
+            return (
+                False,
+                f"（鼓起脸颊）你问得太快啦……让本喵休息 {int(self.cooldown)} 秒喵。"
+            )
 
-    return True, ""
+        return True, ""
+    
 
 
 # ============================================================

@@ -442,84 +442,83 @@ class CatgirlBot(slixmpp.ClientXMPP):
     # --------------------------------------------------------
 
     async def _join_room_with_retry(self, room_jid: str) -> bool:
-    join_event = asyncio.Event()
+        join_event = asyncio.Event()
 
-    handler_name = (
-        f"muc::{room_jid}::got_online"
-    )
+        handler_name = (
+            f"muc::{room_jid}::got_online"
+        )
 
-    def on_muc_online(presence):
-        try:
-            nick = presence["muc"]["nick"]
-
-            if nick == ROOM_NICK:
-                join_event.set()
-
-        except Exception:
-            pass
-
-    self.add_event_handler(
-        handler_name,
-        on_muc_online,
-    )
-
-    try:
-        for attempt in range(
-            1,
-            JOIN_MAX_RETRIES + 1,
-        ):
+        def on_muc_online(presence):
             try:
-                logging.info(
-                    "尝试加入群聊 %s（第 %s/%s 次）……",
-                    room_jid,
-                    attempt,
-                    JOIN_MAX_RETRIES,
-                )
+                nick = presence["muc"]["nick"]
 
-                join_event.clear()
+                if nick == ROOM_NICK:
+                    join_event.set()
 
-                self.plugin["xep_0045"].join_muc(
-                    room_jid,
-                    ROOM_NICK,
-                )
+            except Exception:
+                pass
 
-                await asyncio.wait_for(
-                    join_event.wait(),
-                    timeout=JOIN_TIMEOUT,
-                )
+        self.add_event_handler(
+            handler_name,
+            on_muc_online,
+        )
 
-                self._joined_rooms.add(room_jid)
-
-                return True
-
-            except asyncio.TimeoutError:
-                logging.warning(
-                    "加入群聊 %s 超时（第 %s 次）",
-                    room_jid,
-                    attempt,
-                )
-
-            except Exception as e:
-                logging.error(
-                    "加入群聊 %s 异常（第 %s 次）: %s",
-                    room_jid,
-                    attempt,
-                    e,
-                )
-
-            await asyncio.sleep(3 * attempt)
-
-    finally:
         try:
-            self.del_event_handler(
-                handler_name,
-                on_muc_online,
-            )
-        except Exception:
-            pass
+            for attempt in range(
+                1,
+                JOIN_MAX_RETRIES + 1,
+            ):
+                try:
+                    logging.info(
+                        "尝试加入群聊 %s（第 %s/%s 次）……",
+                        room_jid,
+                        attempt,
+                        JOIN_MAX_RETRIES,
+                    )
 
-    return False
+                    join_event.clear()
 
+                    self.plugin["xep_0045"].join_muc(
+                        room_jid,
+                        ROOM_NICK,
+                    )
+
+                    await asyncio.wait_for(
+                        join_event.wait(),
+                        timeout=JOIN_TIMEOUT,
+                    )
+
+                    self._joined_rooms.add(room_jid)
+
+                    return True
+
+                except asyncio.TimeoutError:
+                    logging.warning(
+                        "加入群聊 %s 超时（第 %s 次）",
+                        room_jid,
+                        attempt,
+                    )
+
+                except Exception as e:
+                    logging.error(
+                        "加入群聊 %s 异常（第 %s 次）: %s",
+                        room_jid,
+                        attempt,
+                        e,
+                    )
+
+                await asyncio.sleep(3 * attempt)
+
+        finally:
+            try:
+                self.del_event_handler(
+                    handler_name,
+                    on_muc_online,
+                )
+            except Exception:
+                pass
+
+        return False
     # --------------------------------------------------------
     # 群消息
     # --------------------------------------------------------

@@ -404,40 +404,39 @@ class CatgirlBot(slixmpp.ClientXMPP):
     # --------------------------------------------------------
     # 登录完成
     # --------------------------------------------------------
+        async def on_start(self, event):
+            if len(self._joined_rooms) == len(ROOM_JIDS):
+                return
 
-    async def on_start(self, event):
-    if len(self._joined_rooms) == len(ROOM_JIDS):
-        return
+            self.send_presence()
 
-    self.send_presence()
+            await asyncio.sleep(1)
+            for room_jid in ROOM_JIDS:
+                if room_jid in self._joined_rooms:
+                    continue
 
-    await asyncio.sleep(1)
+                joined = await self._join_room_with_retry(room_jid)
 
-    for room_jid in ROOM_JIDS:
-        if room_jid in self._joined_rooms:
-            continue
+                if not joined:
+                    logging.error(
+                        "无法加入群聊 %s，等待外层重连……",
+                        room_jid
+                    )
+                    self.disconnect()
+                    return
 
-        joined = await self._join_room_with_retry(room_jid)
+                logging.info(
+                    "✅ 猫娘已加入群聊：%s，昵称：%s",
+                    room_jid,
+                    ROOM_NICK
+                )
 
-        if not joined:
-            logging.error(
-                "无法加入群聊 %s，等待外层重连……",
-                room_jid
+            logging.info(
+                "🐱 猫娘已成功加入全部 %s 个群聊",
+                len(ROOM_JIDS)
             )
-            self.disconnect()
-            return
 
-        logging.info(
-            "✅ 猫娘已加入群聊：%s，昵称：%s",
-            room_jid,
-            ROOM_NICK
-        )
-
-    logging.info(
-        "🐱 猫娘已成功加入全部 %s 个群聊",
-        len(ROOM_JIDS)
-    )
-
+            
     # --------------------------------------------------------
     # 加入 MUC
     # --------------------------------------------------------

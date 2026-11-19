@@ -524,87 +524,80 @@ class CatgirlBot(slixmpp.ClientXMPP):
     # --------------------------------------------------------
 
     async def on_group_message(self, msg):
+        # 获取消息来源群聊
+        room_jid = msg["from"].bare
 
-    # 获取消息来源群聊
-    room_jid = msg["from"].bare
+        # 只处理配置中的群聊
+        if room_jid not in ROOM_JIDS:
+            return
 
-    # 只处理配置中的群聊
-    if room_jid not in ROOM_JIDS:
-        return
+        nick = msg["mucnick"]
 
-    nick = msg["mucnick"]
+        # 忽略机器人自己
+        if not nick or nick == ROOM_NICK:
+            return
 
-    # 忽略机器人自己
-    if not nick or nick == ROOM_NICK:
-        return
+        body = (msg["body"] or "").strip()
 
-    body = (msg["body"] or "").strip()
+        if not body:
+            return
 
-    if not body:
-        return
+        if not is_triggered(body):
+            return
 
-    if not is_triggered(body):
-        return
+        # 按群聊 + 用户区分身份
+        user_key = f"{room_jid}|{nick}"
 
-    # 按群聊 + 用户区分身份
-    user_key = f"{room_jid}|{nick}"
+        # 限速
+        allowed, reason = self._limiter.check(user_key)
 
-    # 限速
-    allowed, reason = self._limiter.check(user_key)
+        if not allowed:
+            self._send_room(room_jid, f"{nick}: {reason}")
+            return
 
-    if not allowed:
-        self._send_room(
-            room_jid,
-            f"{nick}: {reason}"
+        user_input = strip_trigger(body)
+
+        if not user_input:
+            self._send_room(
+                room_jid,
+                f"{nick}: （耳朵竖起来）嗯？你叫本喵有什么事呀～"
+            )
+            return
+
+        if len(user_input) > MAX_INPUT_LENGTH:
+            self._send_room(
+                room_jid,
+                f"{nick}: （尾巴摇了摇）消息太长啦，本喵一次最多看 {MAX_INPUT_LENGTH} 个字符喵～"
+            )
+            return
+
+        lock = self._user_locks.setdefault(
+            user_key,
+            asyncio.Lock(),
         )
-        return
 
-    user_input = strip_trigger(body)
-
-    if not user_input:
-        self._send_room(
-            room_jid,
-            f"{nick}: "
-            "（耳朵竖起来）嗯？你叫本喵有什么事呀～"
+        asyncio.create_task(
+            self._reply(
+                room_jid,
+                nick,
+                user_input,
+                lock,
+            )
         )
-        return
-
     # 防止超长消息
-    if len(user_input) > MAX_INPUT_LENGTH:
-        self._send_room(
-            room_jid,
-            f"{nick}: "
-            f"（尾巴摇了摇）消息太长啦，本喵一次最多看 "
-            f"{MAX_INPUT_LENGTH} 个字符喵～"
-        )
-        return
-
-    # 每个群里的每个用户分别使用独立锁
-    lock = self._user_locks.setdefault(
-        user_key,
-        asyncio.Lock(),
-    )
-
-    asyncio.create_task(
-        self._reply(
-            room_jid,
-            nick,
-            user_input,
-            lock,
-        )
-    )
+    
 
     # --------------------------------------------------------
     # AI 回复
     # --------------------------------------------------------
 
     async def _reply(
-    self,
-    room_jid: str,
-    nick: str,
-    user_input: str,
-    lock: asyncio.Lock,
-):
+        self,
+        room_jid: str,
+        nick: str,
+        user_input: str,
+        lock: asyncio.Lock,
+    ):
 
     async with lock:
 

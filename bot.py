@@ -736,18 +736,18 @@ class CatgirlBot(slixmpp.ClientXMPP):
     # --------------------------------------------------------
 
     def _send_room(self, room_jid: str, text: str):
-    try:
-        self.send_message(
-            mto=room_jid,
-            mbody=text,
-            mtype="groupchat",
-        )
-    except Exception as e:
-        logging.error(
-            "发送群消息失败（%s）: %s",
-            room_jid,
-            e,
-        )
+        try:
+            self.send_message(
+                mto=room_jid,
+                mbody=text,
+                mtype="groupchat",
+            )
+        except Exception as e:
+            logging.error(
+                "发送群消息失败（%s）: %s",
+                room_jid,
+                e,
+            )
 
     # --------------------------------------------------------
     # 连接事件

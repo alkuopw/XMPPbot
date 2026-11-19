@@ -112,7 +112,7 @@ def validate_config():
     for name, value in [
         ("BOT_JID", BOT_JID),
         ("BOT_PASSWORD", BOT_PASSWORD),
-        ("ROOM_JID", ROOM_JID),
+        ("ROOM_JIDS", ROOM_JIDS),
         ("CLOUDFLARE_ACCOUNT_ID", CLOUDFLARE_ACCOUNT_ID),
         ("CLOUDFLARE_API_TOKEN", CLOUDFLARE_API_TOKEN),
     ]:
@@ -138,37 +138,37 @@ class RateLimiter:
     _times: Dict[str, List[float]] = field(default_factory=dict)
     _muted: Dict[str, float] = field(default_factory=dict)
 
-    def check(self, nick: str) -> Tuple[bool, str]:
-        now = time.time()
+    def check(self, user_key: str) -> Tuple[bool, str]:
+    now = time.time()
 
-        mute_until = self._muted.get(nick, 0)
+    mute_until = self._muted.get(user_key, 0)
 
-        if now < mute_until:
-            return (
-                False,
-                f"（尾巴轻轻一甩）慢一点啦，等 {int(mute_until - now)} 秒再来找本喵吧～"
-            )
+    if now < mute_until:
+        return (
+            False,
+            f"（尾巴轻轻一甩）慢一点啦，等 {int(mute_until - now)} 秒再来找本喵吧～"
+        )
 
-        if mute_until:
-            self._muted.pop(nick, None)
+    if mute_until:
+        self._muted.pop(user_key, None)
 
-        times = self._times.setdefault(nick, [])
-        times[:] = [
-            t for t in times
-            if now - t < self.time_window
-        ]
+    times = self._times.setdefault(user_key, [])
+    times[:] = [
+        t for t in times
+        if now - t < self.time_window
+    ]
 
-        times.append(now)
+    times.append(now)
 
-        if len(times) > self.max_count:
-            self._muted[nick] = now + self.cooldown
+    if len(times) > self.max_count:
+        self._muted[user_key] = now + self.cooldown
 
-            return (
-                False,
-                f"（鼓起脸颊）你问得太快啦……让本喵休息 {int(self.cooldown)} 秒喵。"
-            )
+        return (
+            False,
+            f"（鼓起脸颊）你问得太快啦……让本喵休息 {int(self.cooldown)} 秒喵。"
+        )
 
-        return True, ""
+    return True, ""
 
 
 # ============================================================
@@ -362,7 +362,8 @@ class CatgirlBot(slixmpp.ClientXMPP):
         self._history = shared_history
         self._limiter = rate_limiter
 
-        self._is_joined = False
+        # 分别记录每个群的加入状态
+        self._joined_rooms = set()
 
         # 避免同一用户短时间内疯狂并发请求
         self._user_locks: Dict[str, asyncio.Lock] = {}
@@ -405,107 +406,120 @@ class CatgirlBot(slixmpp.ClientXMPP):
     # --------------------------------------------------------
 
     async def on_start(self, event):
-        if self._is_joined:
-            return
+    if len(self._joined_rooms) == len(ROOM_JIDS):
+        return
 
-        self.send_presence()
+    self.send_presence()
 
-        await asyncio.sleep(1)
+    await asyncio.sleep(1)
 
-        joined = await self._join_room_with_retry()
+    for room_jid in ROOM_JIDS:
+        if room_jid in self._joined_rooms:
+            continue
+
+        joined = await self._join_room_with_retry(room_jid)
 
         if not joined:
             logging.error(
-                "无法加入群聊，等待外层重连……"
+                "无法加入群聊 %s，等待外层重连……",
+                room_jid
             )
             self.disconnect()
             return
 
         logging.info(
-            "✅ 猫娘上线：%s",
-            ROOM_NICK,
+            "✅ 猫娘已加入群聊：%s，昵称：%s",
+            room_jid,
+            ROOM_NICK
         )
+
+    logging.info(
+        "🐱 猫娘已成功加入全部 %s 个群聊",
+        len(ROOM_JIDS)
+    )
 
     # --------------------------------------------------------
     # 加入 MUC
     # --------------------------------------------------------
 
-    async def _join_room_with_retry(self) -> bool:
-        join_event = asyncio.Event()
+    async def _join_room_with_retry(self, room_jid: str) -> bool:
+    join_event = asyncio.Event()
 
-        handler_name = (
-            f"muc::{ROOM_JID}::got_online"
-        )
+    handler_name = (
+        f"muc::{room_jid}::got_online"
+    )
 
-        def on_muc_online(presence):
-            try:
-                nick = presence["muc"]["nick"]
-
-                if nick == ROOM_NICK:
-                    join_event.set()
-
-            except Exception:
-                pass
-
-        self.add_event_handler(
-            handler_name,
-            on_muc_online,
-        )
-
+    def on_muc_online(presence):
         try:
-            for attempt in range(
-                1,
-                JOIN_MAX_RETRIES + 1,
-            ):
-                try:
-                    logging.info(
-                        "尝试加入群聊 "
-                        "（第 %s/%s 次）……",
-                        attempt,
-                        JOIN_MAX_RETRIES,
-                    )
+            nick = presence["muc"]["nick"]
 
-                    join_event.clear()
+            if nick == ROOM_NICK:
+                join_event.set()
 
-                    self.plugin["xep_0045"].join_muc(
-                        ROOM_JID,
-                        ROOM_NICK,
-                    )
+        except Exception:
+            pass
 
-                    await asyncio.wait_for(
-                        join_event.wait(),
-                        timeout=JOIN_TIMEOUT,
-                    )
+    self.add_event_handler(
+        handler_name,
+        on_muc_online,
+    )
 
-                    self._is_joined = True
-
-                    return True
-
-                except asyncio.TimeoutError:
-                    logging.warning(
-                        "加入群聊超时（第 %s 次）",
-                        attempt,
-                    )
-
-                except Exception as e:
-                    logging.error(
-                        "加入群聊异常（第 %s 次）: %s",
-                        attempt,
-                        e,
-                    )
-
-                await asyncio.sleep(3 * attempt)
-
-        finally:
+    try:
+        for attempt in range(
+            1,
+            JOIN_MAX_RETRIES + 1,
+        ):
             try:
-                self.del_event_handler(
-                    handler_name,
-                    on_muc_online,
+                logging.info(
+                    "尝试加入群聊 %s（第 %s/%s 次）……",
+                    room_jid,
+                    attempt,
+                    JOIN_MAX_RETRIES,
                 )
-            except Exception:
-                pass
 
-        return False
+                join_event.clear()
+
+                self.plugin["xep_0045"].join_muc(
+                    room_jid,
+                    ROOM_NICK,
+                )
+
+                await asyncio.wait_for(
+                    join_event.wait(),
+                    timeout=JOIN_TIMEOUT,
+                )
+
+                self._joined_rooms.add(room_jid)
+
+                return True
+
+            except asyncio.TimeoutError:
+                logging.warning(
+                    "加入群聊 %s 超时（第 %s 次）",
+                    room_jid,
+                    attempt,
+                )
+
+            except Exception as e:
+                logging.error(
+                    "加入群聊 %s 异常（第 %s 次）: %s",
+                    room_jid,
+                    attempt,
+                    e,
+                )
+
+            await asyncio.sleep(3 * attempt)
+
+    finally:
+        try:
+            self.del_event_handler(
+                handler_name,
+                on_muc_online,
+            )
+        except Exception:
+            pass
+
+    return False
 
     # --------------------------------------------------------
     # 群消息
@@ -513,79 +527,92 @@ class CatgirlBot(slixmpp.ClientXMPP):
 
     async def on_group_message(self, msg):
 
-        # 只处理指定群
-        if msg["from"].bare != ROOM_JID:
-            return
+    # 获取消息来源群聊
+    room_jid = msg["from"].bare
 
-        nick = msg["mucnick"]
+    # 只处理配置中的群聊
+    if room_jid not in ROOM_JIDS:
+        return
 
-        # 忽略自己
-        if not nick or nick == ROOM_NICK:
-            return
+    nick = msg["mucnick"]
 
-        body = (msg["body"] or "").strip()
+    # 忽略机器人自己
+    if not nick or nick == ROOM_NICK:
+        return
 
-        if not body:
-            return
+    body = (msg["body"] or "").strip()
 
-        if not is_triggered(body):
-            return
+    if not body:
+        return
 
-        # 限速
-        allowed, reason = self._limiter.check(nick)
+    if not is_triggered(body):
+        return
 
-        if not allowed:
-            self._send_room(
-                f"{nick}: {reason}"
-            )
-            return
+    # 按群聊 + 用户区分身份
+    user_key = f"{room_jid}|{nick}"
 
-        user_input = strip_trigger(body)
+    # 限速
+    allowed, reason = self._limiter.check(user_key)
 
-        if not user_input:
-            self._send_room(
-                f"{nick}: "
-                "（耳朵竖起来）嗯？你叫本喵有什么事呀～"
-            )
-            return
+    if not allowed:
+        self._send_room(
+            room_jid,
+            f"{nick}: {reason}"
+        )
+        return
 
-        # 防止超长消息
-        if len(user_input) > MAX_INPUT_LENGTH:
-            self._send_room(
-                f"{nick}: "
-                f"（尾巴摇了摇）消息太长啦，本喵一次最多看 "
-                f"{MAX_INPUT_LENGTH} 个字符喵～"
-            )
-            return
+    user_input = strip_trigger(body)
 
-        # 每个用户单独锁，避免同一个人同时触发多个请求
-        lock = self._user_locks.setdefault(
+    if not user_input:
+        self._send_room(
+            room_jid,
+            f"{nick}: "
+            "（耳朵竖起来）嗯？你叫本喵有什么事呀～"
+        )
+        return
+
+    # 防止超长消息
+    if len(user_input) > MAX_INPUT_LENGTH:
+        self._send_room(
+            room_jid,
+            f"{nick}: "
+            f"（尾巴摇了摇）消息太长啦，本喵一次最多看 "
+            f"{MAX_INPUT_LENGTH} 个字符喵～"
+        )
+        return
+
+    # 每个群里的每个用户分别使用独立锁
+    lock = self._user_locks.setdefault(
+        user_key,
+        asyncio.Lock(),
+    )
+
+    asyncio.create_task(
+        self._reply(
+            room_jid,
             nick,
-            asyncio.Lock(),
+            user_input,
+            lock,
         )
-
-        asyncio.create_task(
-            self._reply(
-                nick,
-                user_input,
-                lock,
-            )
-        )
+    )
 
     # --------------------------------------------------------
     # AI 回复
     # --------------------------------------------------------
 
     async def _reply(
-        self,
-        nick: str,
-        user_input: str,
-        lock: asyncio.Lock,
-    ):
+    self,
+    room_jid: str,
+    nick: str,
+    user_input: str,
+    lock: asyncio.Lock,
+):
 
-        async with lock:
+    async with lock:
 
-            history = self._history[nick]
+        user_key = f"{room_jid}|{nick}"
+
+        history = self._history[user_key]
 
             try:
                 await asyncio.sleep(REPLY_DELAY)
@@ -660,6 +687,7 @@ class CatgirlBot(slixmpp.ClientXMPP):
                     history.popleft()
 
                 self._send_room(
+                    room_jid,
                     f"{nick}: {reply}"
                 )
 
@@ -677,6 +705,7 @@ class CatgirlBot(slixmpp.ClientXMPP):
                 )
 
                 self._send_room(
+                    room_jid,
                     f"{nick}: "
                     "（耳朵耷拉下来）呜……AI 好像有点忙，"
                     "过一会儿再叫本喵一次吧～"
@@ -691,6 +720,7 @@ class CatgirlBot(slixmpp.ClientXMPP):
                 )
 
                 self._send_room(
+                    room_jid,
                     f"{nick}: "
                     "（歪头）唔……云端好像出了点问题，"
                     "稍后再试一下喵。"
@@ -707,6 +737,7 @@ class CatgirlBot(slixmpp.ClientXMPP):
                 )
 
                 self._send_room(
+                    room_jid,
                     f"{nick}: "
                     "（尾巴炸毛）诶？发生了奇怪的问题……"
                     "让本喵缓一缓喵。"
@@ -716,28 +747,30 @@ class CatgirlBot(slixmpp.ClientXMPP):
     # 发送群消息
     # --------------------------------------------------------
 
-    def _send_room(self, text: str):
-        try:
-            self.send_message(
-                mto=ROOM_JID,
-                mbody=text,
-                mtype="groupchat",
-            )
-        except Exception as e:
-            logging.error(
-                "发送群消息失败: %s",
-                e,
-            )
+    def _send_room(self, room_jid: str, text: str):
+    try:
+        self.send_message(
+            mto=room_jid,
+            mbody=text,
+            mtype="groupchat",
+        )
+    except Exception as e:
+        logging.error(
+            "发送群消息失败（%s）: %s",
+            room_jid,
+            e,
+        )
 
     # --------------------------------------------------------
     # 连接事件
     # --------------------------------------------------------
 
     def on_disconnect(self, event):
-        logging.warning(
-            "⚠ XMPP 连接断开，等待外层重连……"
-        )
-        self._is_joined = False
+    logging.warning(
+        "⚠ XMPP 连接断开，等待外层重连……"
+    )
+
+    self._joined_rooms.clear()
 
     def on_connection_failed(self, event):
         logging.error(

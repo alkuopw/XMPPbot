@@ -19,7 +19,20 @@ import slixmpp
 
 BOT_JID = os.getenv("BOT_JID", "").strip()
 BOT_PASSWORD = os.getenv("BOT_PASSWORD", "")
+# 支持多个 XMPP MUC 群聊
+# 优先使用 ROOM_JIDS，多个群聊使用英文逗号分隔
+ROOM_JIDS = [
+    room.strip()
+    for room in os.getenv("ROOM_JIDS", "").split(",")
+    if room.strip()
+]
+
+# 兼容旧版单群配置
 ROOM_JID = os.getenv("ROOM_JID", "").strip()
+
+if not ROOM_JIDS and ROOM_JID:
+    ROOM_JIDS = [ROOM_JID]
+
 ROOM_NICK = os.getenv("ROOM_NICK", "猫娘")
 
 # Cloudflare Workers AI
